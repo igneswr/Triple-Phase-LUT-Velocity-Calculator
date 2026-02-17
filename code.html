@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Triple Phase LUT Calculator</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+    body {
+        background: #000;
+        color: #fff;
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+    }
+
+    header {
+        text-align: center;
+        padding: 25px;
+        background: linear-gradient(90deg, #111, #000);
+    }
+
+    .logo {
+        width: 90px;
+        height: 90px;
+        border-radius: 50%;
+        margin-bottom: 10px;
+        box-shadow: 0 0 15px rgba(255,255,255,0.2);
+        object-fit: cover;
+    }
+
+    .title {
+        font-size: 28px;
+        font-weight: bold;
+        letter-spacing: 2px;
+    }
+
+    .credit {
+        font-size: 14px;
+        color: #aaa;
+        margin-top: 5px;
+    }
+
+    .container {
+        max-width: 1000px;
+        margin: auto;
+        padding: 20px;
+    }
+
+    .card {
+        background: #111;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 0 15px rgba(255,255,255,0.05);
+    }
+
+    label {
+        display: block;
+        margin-top: 12px;
+        font-size: 14px;
+    }
+
+    input {
+        width: 100%;
+        padding: 8px;
+        margin-top: 5px;
+        background: #000;
+        border: 1px solid #333;
+        color: #fff;
+        border-radius: 6px;
+    }
+
+    button {
+        margin-top: 20px;
+        padding: 12px;
+        width: 100%;
+        border: none;
+        background: #fff;
+        color: #000;
+        font-weight: bold;
+        cursor: pointer;
+        border-radius: 8px;
+        transition: 0.3s;
+    }
+
+    button:hover {
+        background: #ccc;
+    }
+
+    canvas {
+        background: #000;
+        border-radius: 10px;
+        padding: 10px;
+    }
+
+    .guide {
+        line-height: 1.6;
+        color: #ccc;
+    }
+</style>
+</head>
+
+<body>
+
+<header>
+
+    <img class="logo"
+    src="https://yt3.googleusercontent.com/G3NBG71dzJtbQ3ae2ERcVDRvXGEHaAlCO43-fnO-uilXeikc5mYWp2p2k4owzc4S5n0brzNC=s160-c-k-c0x00ffffff-no-rj">
+
+    <div class="title">Triple Phase LUT Velocity Calculator</div>
+    <div class="credit">Made by @igneswr</div>
+    <div class="credit">Original Logic by @fugaz13</div>
+
+</header>
+
+<div class="container">
+
+    <div class="card">
+        <h2>Instructions & Explanation</h2>
+        <div class="guide">
+            <p>This calculator generates a <b>Triple-Phase Velocity Curve LUT</b> used for Raw Accel style mouse acceleration.</p>
+
+            <p><b>How it works:</b></p>
+            <ul>
+                <li><b>Phase 1</b> → Linear low-speed control.</li>
+                <li><b>Phase 2</b> → Smooth sigmoid transition.</li>
+                <li><b>Phase 3</b> → High-speed acceleration cap.</li>
+            </ul>
+
+            <p><b>Smooth Factor:</b> Controls how gradual transitions feel.</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Parameters</h2>
+
+        <label>Input Range</label>
+        <input id="input_range" value="257">
+
+        <label>Phase 1 Velocity</label>
+        <input id="phase1_velocity" value="6.6">
+
+        <label>Phase 2 Velocity</label>
+        <input id="phase2_velocity" value="23">
+
+        <label>Phase 3 Velocity</label>
+        <input id="phase3_velocity" value="53">
+
+        <label>Phase 1 Cap</label>
+        <input id="phase1_cap" value="60">
+
+        <label>Phase 2 Start</label>
+        <input id="phase2_start" value="152">
+
+        <label>Phase 3 Start</label>
+        <input id="phase3_start" value="180">
+
+        <label>Smooth Factor</label>
+        <input id="smooth_factor" value="0.1">
+
+        <button onclick="generateCurve()">Generate LUT</button>
+        <button onclick="downloadLUT()">Download LUT</button>
+    </div>
+
+    <div class="card">
+        <h2>Velocity Graph</h2>
+        <canvas id="chart"></canvas>
+    </div>
+
+</div>
+
+<script>
+let chart;
+let lutData = [];
+
+function sigmoid(x) {
+    return 1 / (1 + Math.exp(-x));
+}
+
+function generateCurve() {
+
+    const input_range = Number(document.getElementById("input_range").value);
+    const phase1_velocity = Number(document.getElementById("phase1_velocity").value);
+    const phase2_velocity = Number(document.getElementById("phase2_velocity").value);
+    const phase3_velocity = Number(document.getElementById("phase3_velocity").value);
+    const phase1_cap = Number(document.getElementById("phase1_cap").value);
+    const phase2_start = Number(document.getElementById("phase2_start").value);
+    const phase3_start = Number(document.getElementById("phase3_start").value);
+    const smooth_factor = Number(document.getElementById("smooth_factor").value);
+
+    let xValues = [];
+    let yValues = [];
+    lutData = [];
+
+    for (let x = 1; x <= input_range; x++) {
+
+        let y;
+
+        if (x <= phase1_cap) {
+            y = (phase1_velocity / phase1_cap) * x;
+        }
+        else if (x > phase1_cap && x < phase2_start) {
+            let mid = (phase1_cap + phase2_start) / 2;
+            let transition = sigmoid(smooth_factor * (x - mid));
+            y = phase1_velocity + (phase2_velocity - phase1_velocity) * transition;
+        }
+        else if (x >= phase2_start && x < phase3_start) {
+            let mid = (phase2_start + phase3_start) / 2;
+            let transition = sigmoid(smooth_factor * (x - mid));
+            y = phase2_velocity + (phase3_velocity - phase2_velocity) * transition;
+        }
+        else {
+            y = phase3_velocity;
+        }
+
+        xValues.push(x);
+        yValues.push(y);
+        lutData.push(`${x.toFixed(2)}, ${y.toFixed(6)};`);
+    }
+
+    drawChart(xValues, yValues);
+}
+
+function drawChart(x, y) {
+
+    if (chart) chart.destroy();
+
+    chart = new Chart(document.getElementById("chart"), {
+        type: "line",
+        data: {
+            labels: x,
+            datasets: [{
+                label: "Velocity Curve",
+                data: y,
+                borderColor: "white",
+                borderWidth: 2,
+                pointRadius: 0
+            }]
+        },
+        options: {
+            plugins: {
+                legend: { labels: { color: "white" } }
+            },
+            scales: {
+                x: {
+                    ticks: { color: "white" },
+                    grid: { color: "#222" }
+                },
+                y: {
+                    ticks: { color: "white" },
+                    grid: { color: "#222" }
+                }
+            }
+        }
+    });
+}
+
+function downloadLUT() {
+
+    if (lutData.length === 0) return alert("Generate curve first!");
+
+    let blob = new Blob([lutData.join("\n")], { type: "text/plain" });
+    let a = document.createElement("a");
+
+    a.href = URL.createObjectURL(blob);
+    a.download = "triple_phase_velocity_curve.txt";
+    a.click();
+}
+</script>
+
+</body>
+</html>
