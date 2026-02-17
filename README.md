@@ -1,6 +1,6 @@
 Triple Phase LUT Velocity Calculator
 
-This is a simple website tool that helps create velocity curve LUT files for Raw Accel mouse accel.
+This is a simple website tool that helps create velocity curve LUT files for Raw Accel.
 
 This tool lets you change numbers and see the curve live. You can also download the LUT file.
 
