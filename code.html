@@ -8,20 +8,29 @@
 <style>
 body{background:#000;color:#fff;font-family:Arial;margin:0;}
 header{text-align:center;padding:25px;background:linear-gradient(90deg,#111,#000);}
-.logo{width:90px;height:90px;border-radius:50%;margin-bottom:10px;
-box-shadow:0 0 15px rgba(255,255,255,.2);object-fit:cover;}
+.logo{
+width:90px;height:90px;border-radius:50%;margin-bottom:10px;
+box-shadow:0 0 15px rgba(255,255,255,.2);object-fit:cover;
+}
 .title{font-size:28px;font-weight:bold;letter-spacing:2px;}
 .credit{font-size:14px;color:#aaa;}
 .container{max-width:1000px;margin:auto;padding:20px;}
 .card{background:#111;border-radius:15px;padding:20px;margin-bottom:20px;}
 label{display:block;margin-top:12px;}
-input{width:100%;padding:8px;margin-top:5px;background:#000;
-border:1px solid #333;color:#fff;border-radius:6px;}
-button{margin-top:15px;padding:12px;width:100%;border:none;
-background:#fff;color:#000;font-weight:bold;border-radius:8px;cursor:pointer;}
-textarea{width:100%;height:180px;background:#000;color:#fff;
-border:1px solid #333;border-radius:8px;padding:10px;margin-top:15px;
-font-family:monospace;}
+input{
+width:100%;padding:8px;margin-top:5px;background:#000;
+border:1px solid #333;color:#fff;border-radius:6px;
+}
+button{
+margin-top:15px;padding:12px;width:100%;
+border:none;background:#fff;color:#000;
+font-weight:bold;border-radius:8px;cursor:pointer;
+}
+textarea{
+width:100%;height:180px;background:#000;color:#fff;
+border:1px solid #333;border-radius:8px;padding:10px;
+margin-top:15px;font-family:monospace;
+}
 </style>
 </head>
 
@@ -33,7 +42,6 @@ src="https://yt3.googleusercontent.com/G3NBG71dzJtbQ3ae2ERcVDRvXGEHaAlCO43-fnO-u
 
 <div class="title">Triple Phase LUT Velocity Calculator</div>
 <div class="credit">Made by @igneswr</div>
-<div class="credit">Original Logic by @fugaz13</div>
 </header>
 
 <div class="container">
@@ -83,94 +91,98 @@ src="https://yt3.googleusercontent.com/G3NBG71dzJtbQ3ae2ERcVDRvXGEHaAlCO43-fnO-u
 let chart;
 const MAX_POINTS = 257;
 
-/* ===== ELEMENTS ===== */
+/* ---------- SAFE NUMBER ---------- */
+function num(v, def=0){
+v = Number(v);
+return isFinite(v) ? v : def;
+}
 
-const input_rangeEl=document.getElementById("input_range");
-const phase1_velocityEl=document.getElementById("phase1_velocity");
-const phase2_velocityEl=document.getElementById("phase2_velocity");
-const phase3_velocityEl=document.getElementById("phase3_velocity");
-const phase1_capEl=document.getElementById("phase1_cap");
-const phase2_startEl=document.getElementById("phase2_start");
-const phase3_startEl=document.getElementById("phase3_start");
-const smooth_factorEl=document.getElementById("smooth_factor");
-
-const chartEl=document.getElementById("chart");
-const lutOutput=document.getElementById("lutOutput");
-
-/* ===== SIGMOID ===== */
-
+/* ---------- SIGMOID ---------- */
 function sigmoid(x){
 return 1/(1+Math.exp(-x));
 }
 
-/* ===== RESAMPLE (ANTI MAX POINT ERROR) ===== */
-
+/* ---------- LIMIT POINTS ---------- */
 function limitPoints(data){
 
-if(data.length<=MAX_POINTS) return data;
+if(data.length <= MAX_POINTS) return data;
 
-let result=[];
-let step=(data.length-1)/(MAX_POINTS-1);
+const result=[];
+const step=(data.length-1)/(MAX_POINTS-1);
 
 for(let i=0;i<MAX_POINTS;i++){
 let index=Math.round(i*step);
+index=Math.min(index,data.length-1);
 result.push(data[index]);
 }
 
 return result;
 }
 
-/* ===== RAW ACCEL SAFE FIX ===== */
-
+/* ---------- RAW ACCEL SAFE FIX ---------- */
 function autoFixLUT(data){
 
 let fixed=[];
-fixed.push({x:0.001,y:1});
-
 let lastX=0.001;
 
-for(let p of data){
+/* guaranteed valid first point */
+fixed.push({x:lastX,y:1});
 
-if(!isFinite(p.x)||!isFinite(p.y)) continue;
+for(const p of data){
 
-p.x=Math.max(0.001,p.x);
-p.y=Math.max(0,Math.min(5,p.y));
+if(!p || !isFinite(p.x) || !isFinite(p.y)) continue;
 
-if(p.x<=lastX)
-p.x=lastX+0.001;
+let x=Math.max(0.001,p.x);
+let y=Math.max(0,Math.min(5,p.y));
 
-fixed.push(p);
-lastX=p.x;
+if(x<=lastX)
+x=lastX+0.001;
+
+fixed.push({x,y});
+lastX=x;
 }
 
-fixed.push({x:100,y:1});
+/* ensure ending anchor */
+fixed.push({
+x:lastX+0.001,
+y:1
+});
 
-/* prevent >257 error */
+/* enforce raw accel limit */
 fixed=limitPoints(fixed);
+
+/* FINAL STRICT PASS */
+for(let i=1;i<fixed.length;i++){
+if(fixed[i].x<=fixed[i-1].x){
+fixed[i].x=fixed[i-1].x+0.001;
+}
+}
 
 return fixed;
 }
 
-/* ===== GENERATE ===== */
-
+/* ---------- GENERATE ---------- */
 function generateCurve(){
 
-const input_range=Math.max(1,Number(input_rangeEl.value));
-const p1v=Number(phase1_velocityEl.value);
-const p2v=Number(phase2_velocityEl.value);
-const p3v=Number(phase3_velocityEl.value);
-const p1cap=Number(phase1_capEl.value);
-const p2start=Number(phase2_startEl.value);
-const p3start=Number(phase3_startEl.value);
-const smooth=Number(smooth_factorEl.value);
+const input_range=Math.max(2,num(input_range.value,257));
+
+const p1v=num(phase1_velocity.value);
+const p2v=num(phase2_velocity.value);
+const p3v=num(phase3_velocity.value);
+
+const p1cap=num(phase1_cap.value);
+const p2start=num(phase2_start.value);
+const p3start=num(phase3_start.value);
+
+const smooth=Math.max(0.0001,num(smooth_factor.value));
 
 let raw=[];
-let xValues=[];
-let yValues=[];
+let xVals=[];
+let yVals=[];
 
 for(let x=1;x<=input_range;x++){
 
-let y;
+let y=1;
 
 if(x<=p1cap){
 y=(p1v/p1cap)*x;
@@ -190,21 +202,21 @@ y=p3v;
 }
 
 raw.push({x,y});
-xValues.push(x);
-yValues.push(y);
+xVals.push(x);
+yVals.push(y);
 }
 
 const safe=autoFixLUT(raw);
 
-lutOutput.value=safe
+/* EXPORT */
+lutOutput.value = safe
 .map(p=>`${p.x.toFixed(3)},${p.y.toFixed(3)};`)
 .join("\n");
 
-drawChart(xValues,yValues);
+drawChart(xVals,yVals);
 }
 
-/* ===== GRAPH ===== */
-
+/* ---------- GRAPH ---------- */
 function drawChart(x,y){
 
 if(chart) chart.destroy();
@@ -222,6 +234,7 @@ pointRadius:0
 }]
 },
 options:{
+responsive:true,
 plugins:{legend:{labels:{color:"white"}}},
 scales:{
 x:{ticks:{color:"white"},grid:{color:"#222"}},
@@ -231,18 +244,17 @@ y:{ticks:{color:"white"},grid:{color:"#222"}}
 });
 }
 
-/* ===== COPY ===== */
-
+/* ---------- COPY ---------- */
 function copyLUT(){
 
-if(!lutOutput.value){
+if(!lutOutput.value.trim()){
 alert("Generate LUT first");
 return;
 }
 
 lutOutput.select();
 document.execCommand("copy");
-alert("Copied");
+alert("Copied!");
 }
 
 </script>
