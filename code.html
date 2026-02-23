@@ -7,103 +7,85 @@
 
 <style>
 body {
-    background: #000;
-    color: #fff;
-    font-family: Arial, sans-serif;
-    margin: 0;
-    padding: 0;
+    background:#000;
+    color:#fff;
+    font-family:Arial;
+    margin:0;
 }
 
-header {
-    text-align: center;
-    padding: 25px;
-    background: linear-gradient(90deg, #111, #000);
+header{
+    text-align:center;
+    padding:25px;
+    background:linear-gradient(90deg,#111,#000);
 }
 
-.logo {
-    width: 90px;
-    height: 90px;
-    border-radius: 50%;
-    margin-bottom: 10px;
-    box-shadow: 0 0 15px rgba(255,255,255,0.2);
-    object-fit: cover;
+.logo{
+    width:90px;
+    height:90px;
+    border-radius:50%;
+    margin-bottom:10px;
+    box-shadow:0 0 15px rgba(255,255,255,.2);
+    object-fit:cover;
 }
 
-.title {
-    font-size: 28px;
-    font-weight: bold;
-    letter-spacing: 2px;
+.title{
+    font-size:28px;
+    font-weight:bold;
+    letter-spacing:2px;
 }
 
-.credit {
-    font-size: 14px;
-    color: #aaa;
-    margin-top: 5px;
+.credit{
+    font-size:14px;
+    color:#aaa;
 }
 
-.container {
-    max-width: 1000px;
-    margin: auto;
-    padding: 20px;
+.container{
+    max-width:1000px;
+    margin:auto;
+    padding:20px;
 }
 
-.card {
-    background: #111;
-    border-radius: 15px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 0 15px rgba(255,255,255,0.05);
+.card{
+    background:#111;
+    border-radius:15px;
+    padding:20px;
+    margin-bottom:20px;
 }
 
-label {
-    display: block;
-    margin-top: 12px;
-    font-size: 14px;
+label{display:block;margin-top:12px;}
+
+input{
+    width:100%;
+    padding:8px;
+    margin-top:5px;
+    background:#000;
+    border:1px solid #333;
+    color:#fff;
+    border-radius:6px;
 }
 
-input {
-    width: 100%;
-    padding: 8px;
-    margin-top: 5px;
-    background: #000;
-    border: 1px solid #333;
-    color: #fff;
-    border-radius: 6px;
+button{
+    margin-top:15px;
+    padding:12px;
+    width:100%;
+    border:none;
+    background:#fff;
+    color:#000;
+    font-weight:bold;
+    border-radius:8px;
+    cursor:pointer;
 }
 
-button {
-    margin-top: 15px;
-    padding: 12px;
-    width: 100%;
-    border: none;
-    background: #fff;
-    color: #000;
-    font-weight: bold;
-    cursor: pointer;
-    border-radius: 8px;
-}
-
-button:hover {
-    background: #ccc;
-}
-
-canvas {
-    background: #000;
-    border-radius: 10px;
-    padding: 10px;
-}
-
-textarea {
-    width: 100%;
-    height: 180px;
-    background: #000;
-    color: #fff;
-    border: 1px solid #333;
-    border-radius: 8px;
-    padding: 10px;
-    margin-top: 15px;
-    font-family: monospace;
-    resize: vertical;
+textarea{
+    width:100%;
+    height:180px;
+    background:#000;
+    color:#fff;
+    border:1px solid #333;
+    border-radius:8px;
+    padding:10px;
+    margin-top:15px;
+    font-family:monospace;
 }
 </style>
 </head>
@@ -122,7 +104,6 @@ src="https://yt3.googleusercontent.com/G3NBG71dzJtbQ3ae2ERcVDRvXGEHaAlCO43-fnO-u
 <div class="container">
 
 <div class="card">
-<h2>Parameters</h2>
 
 <label>Input Range</label>
 <input id="input_range" value="257">
@@ -151,7 +132,7 @@ src="https://yt3.googleusercontent.com/G3NBG71dzJtbQ3ae2ERcVDRvXGEHaAlCO43-fnO-u
 <button onclick="generateCurve()">Generate LUT</button>
 <button onclick="copyLUT()">Copy LUT</button>
 
-<textarea id="lutOutput" placeholder="LUT will appear here..."></textarea>
+<textarea id="lutOutput"></textarea>
 
 </div>
 
@@ -163,104 +144,150 @@ src="https://yt3.googleusercontent.com/G3NBG71dzJtbQ3ae2ERcVDRvXGEHaAlCO43-fnO-u
 </div>
 
 <script>
+
 let chart;
-let lutData = [];
+let lutData=[];
 
-function sigmoid(x) {
-    return 1 / (1 + Math.exp(-x));
+/* ================= SIGMOID ================= */
+
+function sigmoid(x){
+return 1/(1+Math.exp(-x));
 }
 
-function generateCurve() {
+/* ================= RAW ACCEL AUTO FIX ================= */
 
-    const input_range = Number(document.getElementById("input_range").value);
-    const phase1_velocity = Number(document.getElementById("phase1_velocity").value);
-    const phase2_velocity = Number(document.getElementById("phase2_velocity").value);
-    const phase3_velocity = Number(document.getElementById("phase3_velocity").value);
-    const phase1_cap = Number(document.getElementById("phase1_cap").value);
-    const phase2_start = Number(document.getElementById("phase2_start").value);
-    const phase3_start = Number(document.getElementById("phase3_start").value);
-    const smooth_factor = Number(document.getElementById("smooth_factor").value);
+function autoFixLUT(data){
 
-    let xValues = [];
-    let yValues = [];
+let fixed=[];
 
-    lutData = [];
-    lutData.push("0.000,1.000;");
+/* required start */
+fixed.push({x:0.001,y:1});
 
-    for (let x = 1; x <= input_range; x++) {
+let lastX=0.001;
 
-        let y;
+for(let p of data){
 
-        if (x <= phase1_cap) {
-            y = (phase1_velocity / phase1_cap) * x;
-        }
-        else if (x > phase1_cap && x < phase2_start) {
-            let mid = (phase1_cap + phase2_start) / 2;
-            let transition = sigmoid(smooth_factor * (x - mid));
-            y = phase1_velocity + (phase2_velocity - phase1_velocity) * transition;
-        }
-        else if (x >= phase2_start && x < phase3_start) {
-            let mid = (phase2_start + phase3_start) / 2;
-            let transition = sigmoid(smooth_factor * (x - mid));
-            y = phase2_velocity + (phase3_velocity - phase2_velocity) * transition;
-        }
-        else {
-            y = phase3_velocity;
-        }
+if(!isFinite(p.x)||!isFinite(p.y)) continue;
 
-        xValues.push(x);
-        yValues.push(y);
-        lutData.push(`${x.toFixed(3)},${y.toFixed(3)};`);
-    }
+/* clamp */
+p.x=Math.max(0.001,p.x);
+p.y=Math.max(0,Math.min(5,p.y));
 
-    lutData.push("100.000,1.000;");
+/* enforce increasing X */
+if(p.x<=lastX)
+p.x=lastX+0.001;
 
-    document.getElementById("lutOutput").value = lutData.join("\n");
-
-    drawChart(xValues, yValues);
+fixed.push(p);
+lastX=p.x;
 }
 
-function drawChart(x, y) {
+/* required ending */
+fixed.push({x:100,y:1});
 
-    if (chart) chart.destroy();
-
-    chart = new Chart(document.getElementById("chart"), {
-        type: "line",
-        data: {
-            labels: x,
-            datasets: [{
-                label: "Velocity Curve",
-                data: y,
-                borderColor: "white",
-                borderWidth: 2,
-                pointRadius: 0
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { labels: { color: "white" } }
-            },
-            scales: {
-                x: { ticks: { color: "white" }, grid: { color: "#222" }},
-                y: { ticks: { color: "white" }, grid: { color: "#222" }}
-            }
-        }
-    });
+return fixed;
 }
 
-function copyLUT() {
-    const textarea = document.getElementById("lutOutput");
+/* ================= GENERATE ================= */
 
-    if (!textarea.value) {
-        alert("Generate LUT first");
-        return;
-    }
+function generateCurve(){
 
-    textarea.select();
-    document.execCommand("copy");
+const input_range=Number(input_rangeEl.value);
+const p1v=Number(phase1_velocity.value);
+const p2v=Number(phase2_velocity.value);
+const p3v=Number(phase3_velocity.value);
+const p1cap=Number(phase1_cap.value);
+const p2start=Number(phase2_start.value);
+const p3start=Number(phase3_start.value);
+const smooth=Number(smooth_factor.value);
 
-    alert("LUT copied to clipboard");
+let raw=[];
+let xValues=[];
+let yValues=[];
+
+for(let x=1;x<=input_range;x++){
+
+let y;
+
+if(x<=p1cap){
+y=(p1v/p1cap)*x;
 }
+else if(x<p2start){
+let mid=(p1cap+p2start)/2;
+let t=sigmoid(smooth*(x-mid));
+y=p1v+(p2v-p1v)*t;
+}
+else if(x<p3start){
+let mid=(p2start+p3start)/2;
+let t=sigmoid(smooth*(x-mid));
+y=p2v+(p3v-p2v)*t;
+}
+else{
+y=p3v;
+}
+
+raw.push({x,y});
+xValues.push(x);
+yValues.push(y);
+}
+
+/* AUTO FIX */
+const safe=autoFixLUT(raw);
+
+/* build LUT text */
+lutData=safe.map(p=>`${p.x.toFixed(3)},${p.y.toFixed(3)};`);
+
+lutOutput.value=lutData.join("\n");
+
+drawChart(xValues,yValues);
+}
+
+/* ================= GRAPH ================= */
+
+function drawChart(x,y){
+
+if(chart) chart.destroy();
+
+chart=new Chart(chartEl,{
+type:"line",
+data:{
+labels:x,
+datasets:[{
+label:"Velocity Curve",
+data:y,
+borderColor:"white",
+borderWidth:2,
+pointRadius:0
+}]
+},
+options:{
+plugins:{legend:{labels:{color:"white"}}},
+scales:{
+x:{ticks:{color:"white"},grid:{color:"#222"}},
+y:{ticks:{color:"white"},grid:{color:"#222"}}
+}
+}
+});
+}
+
+/* ================= COPY ================= */
+
+function copyLUT(){
+
+if(!lutOutput.value){
+alert("Generate LUT first");
+return;
+}
+
+lutOutput.select();
+document.execCommand("copy");
+
+alert("Copied");
+}
+
+/* quick refs */
+const chartEl=document.getElementById("chart");
+const lutOutput=document.getElementById("lutOutput");
+
 </script>
 
 </body>
