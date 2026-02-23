@@ -1,272 +1,216 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Triple Phase LUT Calculator</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<title>Raw Accel LUT Maker</title>
 
 <style>
-    body {
-        background: #000;
-        color: #fff;
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 0;
-    }
+body {
+  font-family: Arial;
+  background:#111;
+  color:white;
+  text-align:center;
+}
 
-    header {
-        text-align: center;
-        padding: 25px;
-        background: linear-gradient(90deg, #111, #000);
-    }
+canvas {
+  background:#000;
+  border:1px solid #444;
+  margin-top:10px;
+  cursor:crosshair;
+}
 
-    .logo {
-        width: 90px;
-        height: 90px;
-        border-radius: 50%;
-        margin-bottom: 10px;
-        box-shadow: 0 0 15px rgba(255,255,255,0.2);
-        object-fit: cover;
-    }
+input {
+  margin:4px;
+  padding:4px;
+  width:90px;
+}
 
-    .title {
-        font-size: 28px;
-        font-weight: bold;
-        letter-spacing: 2px;
-    }
-
-    .credit {
-        font-size: 14px;
-        color: #aaa;
-        margin-top: 5px;
-    }
-
-    .container {
-        max-width: 1000px;
-        margin: auto;
-        padding: 20px;
-    }
-
-    .card {
-        background: #111;
-        border-radius: 15px;
-        padding: 20px;
-        margin-bottom: 20px;
-        box-shadow: 0 0 15px rgba(255,255,255,0.05);
-    }
-
-    label {
-        display: block;
-        margin-top: 12px;
-        font-size: 14px;
-    }
-
-    input {
-        width: 100%;
-        padding: 8px;
-        margin-top: 5px;
-        background: #000;
-        border: 1px solid #333;
-        color: #fff;
-        border-radius: 6px;
-    }
-
-    button {
-        margin-top: 20px;
-        padding: 12px;
-        width: 100%;
-        border: none;
-        background: #fff;
-        color: #000;
-        font-weight: bold;
-        cursor: pointer;
-        border-radius: 8px;
-        transition: 0.3s;
-    }
-
-    button:hover {
-        background: #ccc;
-    }
-
-    canvas {
-        background: #000;
-        border-radius: 10px;
-        padding: 10px;
-    }
-
-    .guide {
-        line-height: 1.6;
-        color: #ccc;
-    }
+button {
+  padding:6px 10px;
+  margin:5px;
+  background:#222;
+  color:white;
+  border:1px solid #555;
+}
+textarea {
+  width:90%;
+  height:120px;
+  background:#000;
+  color:#0f0;
+  margin-top:10px;
+}
 </style>
 </head>
 
 <body>
 
-<header>
+<h2>Raw Accel LUT Maker</h2>
 
-    <img class="logo"
-    src="https://yt3.googleusercontent.com/G3NBG71dzJtbQ3ae2ERcVDRvXGEHaAlCO43-fnO-uilXeikc5mYWp2p2k4owzc4S5n0brzNC=s160-c-k-c0x00ffffff-no-rj">
-
-    <div class="title">Triple Phase LUT Velocity Calculator</div>
-    <div class="credit">Made by @igneswr</div>
-    <div class="credit">Original Logic by @fugaz13</div>
-
-</header>
-
-<div class="container">
-
-    <div class="card">
-        <h2>Instructions & Explanation</h2>
-        <div class="guide">
-            <p>This calculator generates a <b>Triple-Phase Velocity Curve LUT</b> used for Raw Accel style mouse acceleration.</p>
-
-            <p><b>How it works:</b></p>
-            <ul>
-                <li><b>Phase 1</b> → Linear low-speed control.</li>
-                <li><b>Phase 2</b> → Smooth sigmoid transition.</li>
-                <li><b>Phase 3</b> → High-speed acceleration cap.</li>
-            </ul>
-
-            <p><b>Smooth Factor:</b> Controls how gradual transitions feel.</p>
-        </div>
-    </div>
-
-    <div class="card">
-        <h2>Parameters</h2>
-
-        <label>Input Range</label>
-        <input id="input_range" value="257">
-
-        <label>Phase 1 Velocity</label>
-        <input id="phase1_velocity" value="6.6">
-
-        <label>Phase 2 Velocity</label>
-        <input id="phase2_velocity" value="23">
-
-        <label>Phase 3 Velocity</label>
-        <input id="phase3_velocity" value="53">
-
-        <label>Phase 1 Cap</label>
-        <input id="phase1_cap" value="60">
-
-        <label>Phase 2 Start</label>
-        <input id="phase2_start" value="152">
-
-        <label>Phase 3 Start</label>
-        <input id="phase3_start" value="180">
-
-        <label>Smooth Factor</label>
-        <input id="smooth_factor" value="0.1">
-
-        <button onclick="generateCurve()">Generate LUT</button>
-        <button onclick="downloadLUT()">Download LUT</button>
-    </div>
-
-    <div class="card">
-        <h2>Velocity Graph</h2>
-        <canvas id="chart"></canvas>
-    </div>
-
+<div>
+DPI <input id="dpi" value="800">
+Polling Rate <input id="poll" value="1000">
+Mouse Scale <input id="scale" value="1">
 </div>
 
+<canvas id="graph" width="800" height="400"></canvas>
+
+<br>
+
+<button onclick="resetLine()">Reset Straight Line</button>
+<button onclick="exportLUT()">Export LUT</button>
+<button onclick="triplePhase()">Triple Phase LUT</button>
+
+<textarea id="output"></textarea>
+
 <script>
-let chart;
-let lutData = [];
+const canvas = document.getElementById("graph");
+const ctx = canvas.getContext("2d");
 
-function sigmoid(x) {
-    return 1 / (1 + Math.exp(-x));
+let points = [
+  {x:0,y:1},
+  {x:100,y:1}
+];
+
+let dragging = null;
+
+function getScale(){
+  return Number(document.getElementById("scale").value)||1;
 }
 
-function generateCurve() {
+function dpi(){
+  return Number(document.getElementById("dpi").value)||800;
+}
 
-    const input_range = Number(document.getElementById("input_range").value);
-    const phase1_velocity = Number(document.getElementById("phase1_velocity").value);
-    const phase2_velocity = Number(document.getElementById("phase2_velocity").value);
-    const phase3_velocity = Number(document.getElementById("phase3_velocity").value);
-    const phase1_cap = Number(document.getElementById("phase1_cap").value);
-    const phase2_start = Number(document.getElementById("phase2_start").value);
-    const phase3_start = Number(document.getElementById("phase3_start").value);
-    const smooth_factor = Number(document.getElementById("smooth_factor").value);
+function poll(){
+  return Number(document.getElementById("poll").value)||1000;
+}
 
-    let xValues = [];
-    let yValues = [];
-    lutData = [];
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    for (let x = 1; x <= input_range; x++) {
+  ctx.strokeStyle="#333";
+  for(let i=0;i<10;i++){
+    ctx.beginPath();
+    ctx.moveTo(0,i*40);
+    ctx.lineTo(canvas.width,i*40);
+    ctx.stroke();
+  }
 
-        let y;
+  ctx.strokeStyle="#0f0";
+  ctx.beginPath();
 
-        if (x <= phase1_cap) {
-            y = (phase1_velocity / phase1_cap) * x;
-        }
-        else if (x > phase1_cap && x < phase2_start) {
-            let mid = (phase1_cap + phase2_start) / 2;
-            let transition = sigmoid(smooth_factor * (x - mid));
-            y = phase1_velocity + (phase2_velocity - phase1_velocity) * transition;
-        }
-        else if (x >= phase2_start && x < phase3_start) {
-            let mid = (phase2_start + phase3_start) / 2;
-            let transition = sigmoid(smooth_factor * (x - mid));
-            y = phase2_velocity + (phase3_velocity - phase2_velocity) * transition;
-        }
-        else {
-            y = phase3_velocity;
-        }
+  points.sort((a,b)=>a.x-b.x);
 
-        xValues.push(x);
-        yValues.push(y);
-        lutData.push(`${x.toFixed(2)}, ${y.toFixed(6)};`);
+  points.forEach((p,i)=>{
+    let px = p.x/100*canvas.width;
+    let py = canvas.height-(p.y*canvas.height);
+
+    if(i===0) ctx.moveTo(px,py);
+    else ctx.lineTo(px,py);
+  });
+
+  ctx.stroke();
+
+  points.forEach(p=>{
+    let px=p.x/100*canvas.width;
+    let py=canvas.height-(p.y*canvas.height);
+
+    ctx.fillStyle="white";
+    ctx.beginPath();
+    ctx.arc(px,py,5,0,Math.PI*2);
+    ctx.fill();
+  });
+}
+
+canvas.onmousedown = e=>{
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX-rect.left;
+  const my = e.clientY-rect.top;
+
+  points.forEach((p,i)=>{
+    let px=p.x/100*canvas.width;
+    let py=canvas.height-(p.y*canvas.height);
+
+    if(Math.hypot(px-mx,py-my)<10){
+      dragging=i;
     }
+  });
+};
 
-    drawChart(xValues, yValues);
+canvas.onmousemove = e=>{
+  if(dragging===null) return;
+
+  const rect=canvas.getBoundingClientRect();
+  let mx=e.clientX-rect.left;
+  let my=e.clientY-rect.top;
+
+  mx=Math.max(0,Math.min(canvas.width,mx));
+  my=Math.max(0,Math.min(canvas.height,my));
+
+  points[dragging].x=(mx/canvas.width)*100;
+  points[dragging].y=1-(my/canvas.height);
+
+  draw();
+};
+
+canvas.onmouseup=()=>dragging=null;
+canvas.onmouseleave=()=>dragging=null;
+
+canvas.ondblclick=e=>{
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left;
+  const my=e.clientY-rect.top;
+
+  points.push({
+    x:(mx/canvas.width)*100,
+    y:1-(my/canvas.height)
+  });
+
+  draw();
+};
+
+function resetLine(){
+  points=[
+    {x:0,y:1},
+    {x:100,y:1}
+  ];
+  draw();
 }
 
-function drawChart(x, y) {
+function exportLUT(){
+  let s=getScale();
+  let d=dpi();
+  let p=poll();
 
-    if (chart) chart.destroy();
+  points.sort((a,b)=>a.x-b.x);
 
-    chart = new Chart(document.getElementById("chart"), {
-        type: "line",
-        data: {
-            labels: x,
-            datasets: [{
-                label: "Velocity Curve",
-                data: y,
-                borderColor: "white",
-                borderWidth: 2,
-                pointRadius: 0
-            }]
-        },
-        options: {
-            plugins: {
-                legend: { labels: { color: "white" } }
-            },
-            scales: {
-                x: {
-                    ticks: { color: "white" },
-                    grid: { color: "#222" }
-                },
-                y: {
-                    ticks: { color: "white" },
-                    grid: { color: "#222" }
-                }
-            }
-        }
-    });
+  let result="";
+
+  points.forEach(pt=>{
+    let vel=(pt.x*s*d/p).toFixed(3);
+    let gain=pt.y.toFixed(3);
+    result+=vel+","+gain+";";
+  });
+
+  document.getElementById("output").value=result;
 }
 
-function downloadLUT() {
+function triplePhase(){
+  let s=getScale();
+  let d=dpi();
+  let p=poll();
 
-    if (lutData.length === 0) return alert("Generate curve first!");
+  let result="";
+  let start=0;
+  let end=100;
 
-    let blob = new Blob([lutData.join("\n")], { type: "text/plain" });
-    let a = document.createElement("a");
+  result+= (start*s*d/p).toFixed(3)+",1.000;";
+  result+= (end*s*d/p).toFixed(3)+",1.000;";
 
-    a.href = URL.createObjectURL(blob);
-    a.download = "triple_phase_velocity_curve.txt";
-    a.click();
+  document.getElementById("output").value=result;
 }
+
+draw();
 </script>
 
 </body>
