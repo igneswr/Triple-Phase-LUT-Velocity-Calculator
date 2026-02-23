@@ -6,86 +6,89 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body {
-    background:#000;
-    color:#fff;
-    font-family:Arial;
-    margin:0;
+body{
+background:#000;
+color:#fff;
+font-family:Arial;
+margin:0;
 }
 
 header{
-    text-align:center;
-    padding:25px;
-    background:linear-gradient(90deg,#111,#000);
+text-align:center;
+padding:25px;
+background:linear-gradient(90deg,#111,#000);
 }
 
 .logo{
-    width:90px;
-    height:90px;
-    border-radius:50%;
-    margin-bottom:10px;
-    box-shadow:0 0 15px rgba(255,255,255,.2);
-    object-fit:cover;
+width:90px;
+height:90px;
+border-radius:50%;
+margin-bottom:10px;
+box-shadow:0 0 15px rgba(255,255,255,.2);
+object-fit:cover;
 }
 
 .title{
-    font-size:28px;
-    font-weight:bold;
-    letter-spacing:2px;
+font-size:28px;
+font-weight:bold;
+letter-spacing:2px;
 }
 
 .credit{
-    font-size:14px;
-    color:#aaa;
+font-size:14px;
+color:#aaa;
 }
 
 .container{
-    max-width:1000px;
-    margin:auto;
-    padding:20px;
+max-width:1000px;
+margin:auto;
+padding:20px;
 }
 
 .card{
-    background:#111;
-    border-radius:15px;
-    padding:20px;
-    margin-bottom:20px;
+background:#111;
+border-radius:15px;
+padding:20px;
+margin-bottom:20px;
 }
 
-label{display:block;margin-top:12px;}
+label{
+display:block;
+margin-top:12px;
+}
 
 input{
-    width:100%;
-    padding:8px;
-    margin-top:5px;
-    background:#000;
-    border:1px solid #333;
-    color:#fff;
-    border-radius:6px;
+width:100%;
+padding:8px;
+margin-top:5px;
+background:#000;
+border:1px solid #333;
+color:#fff;
+border-radius:6px;
 }
 
 button{
-    margin-top:15px;
-    padding:12px;
-    width:100%;
-    border:none;
-    background:#fff;
-    color:#000;
-    font-weight:bold;
-    border-radius:8px;
-    cursor:pointer;
+margin-top:15px;
+padding:12px;
+width:100%;
+border:none;
+background:#fff;
+color:#000;
+font-weight:bold;
+border-radius:8px;
+cursor:pointer;
 }
 
 textarea{
-    width:100%;
-    height:180px;
-    background:#000;
-    color:#fff;
-    border:1px solid #333;
-    border-radius:8px;
-    padding:10px;
-    margin-top:15px;
-    font-family:monospace;
+width:100%;
+height:180px;
+background:#000;
+color:#fff;
+border:1px solid #333;
+border-radius:8px;
+padding:10px;
+margin-top:15px;
+font-family:monospace;
 }
 </style>
 </head>
@@ -98,7 +101,6 @@ src="https://yt3.googleusercontent.com/G3NBG71dzJtbQ3ae2ERcVDRvXGEHaAlCO43-fnO-u
 
 <div class="title">Triple Phase LUT Velocity Calculator</div>
 <div class="credit">Made by @igneswr</div>
-<div class="credit">Original Logic by @fugaz13</div>
 </header>
 
 <div class="container">
@@ -148,19 +150,31 @@ src="https://yt3.googleusercontent.com/G3NBG71dzJtbQ3ae2ERcVDRvXGEHaAlCO43-fnO-u
 let chart;
 let lutData=[];
 
-/* ================= SIGMOID ================= */
+/* ===== ELEMENT REFERENCES ===== */
+
+const input_rangeEl=document.getElementById("input_range");
+const phase1_velocityEl=document.getElementById("phase1_velocity");
+const phase2_velocityEl=document.getElementById("phase2_velocity");
+const phase3_velocityEl=document.getElementById("phase3_velocity");
+const phase1_capEl=document.getElementById("phase1_cap");
+const phase2_startEl=document.getElementById("phase2_start");
+const phase3_startEl=document.getElementById("phase3_start");
+const smooth_factorEl=document.getElementById("smooth_factor");
+
+const chartEl=document.getElementById("chart");
+const lutOutput=document.getElementById("lutOutput");
+
+/* ===== SIGMOID ===== */
 
 function sigmoid(x){
 return 1/(1+Math.exp(-x));
 }
 
-/* ================= RAW ACCEL AUTO FIX ================= */
+/* ===== RAW ACCEL AUTO FIX ===== */
 
 function autoFixLUT(data){
 
 let fixed=[];
-
-/* required start */
 fixed.push({x:0.001,y:1});
 
 let lastX=0.001;
@@ -169,11 +183,9 @@ for(let p of data){
 
 if(!isFinite(p.x)||!isFinite(p.y)) continue;
 
-/* clamp */
 p.x=Math.max(0.001,p.x);
 p.y=Math.max(0,Math.min(5,p.y));
 
-/* enforce increasing X */
 if(p.x<=lastX)
 p.x=lastX+0.001;
 
@@ -181,24 +193,27 @@ fixed.push(p);
 lastX=p.x;
 }
 
-/* required ending */
 fixed.push({x:100,y:1});
-
 return fixed;
 }
 
-/* ================= GENERATE ================= */
+/* ===== GENERATE CURVE ===== */
 
 function generateCurve(){
 
 const input_range=Number(input_rangeEl.value);
-const p1v=Number(phase1_velocity.value);
-const p2v=Number(phase2_velocity.value);
-const p3v=Number(phase3_velocity.value);
-const p1cap=Number(phase1_cap.value);
-const p2start=Number(phase2_start.value);
-const p3start=Number(phase3_start.value);
-const smooth=Number(smooth_factor.value);
+const p1v=Number(phase1_velocityEl.value);
+const p2v=Number(phase2_velocityEl.value);
+const p3v=Number(phase3_velocityEl.value);
+const p1cap=Number(phase1_capEl.value);
+const p2start=Number(phase2_startEl.value);
+const p3start=Number(phase3_startEl.value);
+const smooth=Number(smooth_factorEl.value);
+
+if(!input_range||input_range<=0){
+alert("Invalid input range");
+return;
+}
 
 let raw=[];
 let xValues=[];
@@ -230,18 +245,15 @@ xValues.push(x);
 yValues.push(y);
 }
 
-/* AUTO FIX */
 const safe=autoFixLUT(raw);
 
-/* build LUT text */
 lutData=safe.map(p=>`${p.x.toFixed(3)},${p.y.toFixed(3)};`);
-
 lutOutput.value=lutData.join("\n");
 
 drawChart(xValues,yValues);
 }
 
-/* ================= GRAPH ================= */
+/* ===== DRAW GRAPH ===== */
 
 function drawChart(x,y){
 
@@ -269,7 +281,7 @@ y:{ticks:{color:"white"},grid:{color:"#222"}}
 });
 }
 
-/* ================= COPY ================= */
+/* ===== COPY ===== */
 
 function copyLUT(){
 
@@ -280,13 +292,8 @@ return;
 
 lutOutput.select();
 document.execCommand("copy");
-
 alert("Copied");
 }
-
-/* quick refs */
-const chartEl=document.getElementById("chart");
-const lutOutput=document.getElementById("lutOutput");
 
 </script>
 
