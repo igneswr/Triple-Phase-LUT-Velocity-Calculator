@@ -8,22 +8,34 @@
 <style>
 body{background:#000;color:#fff;font-family:Arial;margin:0;}
 header{text-align:center;padding:25px;background:linear-gradient(90deg,#111,#000);}
+.logo{width:90px;height:90px;border-radius:50%;margin-bottom:10px;
+box-shadow:0 0 15px rgba(255,255,255,.2);object-fit:cover;}
+.title{font-size:28px;font-weight:bold;letter-spacing:2px;}
+.credit{font-size:14px;color:#aaa;}
 .container{max-width:1000px;margin:auto;padding:20px;}
 .card{background:#111;border-radius:15px;padding:20px;margin-bottom:20px;}
-input,textarea{
-width:100%;padding:8px;margin-top:5px;background:#000;
-border:1px solid #333;color:#fff;border-radius:6px;
-}
-button{
-margin-top:15px;padding:12px;width:100%;
-border:none;background:#fff;color:#000;
-font-weight:bold;border-radius:8px;cursor:pointer;
-}
-textarea{height:180px;font-family:monospace;}
+label{display:block;margin-top:12px;}
+input{width:100%;padding:8px;margin-top:5px;background:#000;
+border:1px solid #333;color:#fff;border-radius:6px;}
+button{margin-top:15px;padding:12px;width:100%;
+border:none;background:#fff;color:#000;font-weight:bold;
+border-radius:8px;cursor:pointer;}
+textarea{width:100%;height:180px;background:#000;color:#fff;
+border:1px solid #333;border-radius:8px;padding:10px;
+margin-top:15px;font-family:monospace;}
 </style>
 </head>
 
 <body>
+
+<header>
+<img class="logo"
+src="https://yt3.googleusercontent.com/G3NBG71dzJtbQ3ae2ERcVDRvXGEHaAlCO43-fnO-uilXeikc5mYWp2p2k4owzc4S5n0brzNC=s160-c-k-c0x00ffffff-no-rj">
+
+<div class="title">Triple Phase LUT Velocity Calculator</div>
+<div class="credit">Made by @igneswr</div>
+<div class="credit">Original Logic by @fugaz13</div>
+</header>
 
 <div class="container">
 
@@ -61,6 +73,7 @@ textarea{height:180px;font-family:monospace;}
 </div>
 
 <div class="card">
+<h2>Velocity Graph</h2>
 <canvas id="chart"></canvas>
 </div>
 
@@ -69,39 +82,41 @@ textarea{height:180px;font-family:monospace;}
 <script>
 
 let chart;
-const MAX_POINTS = 257;
+const MAX_POINTS=257;
+
+/* ---------- ELEMENTS ---------- */
+const chartCanvas=document.getElementById("chart");
+const lutOutput=document.getElementById("lutOutput");
 
 /* ---------- SAFE NUMBER ---------- */
-function safe(v,def){
-v=Number(v);
+function num(id,def){
+let v=Number(document.getElementById(id).value);
 return isFinite(v)?v:def;
 }
 
-/* ---------- AUTO ADJUST ENGINE ---------- */
-function autoAdjust(cfg){
+/* ---------- AUTO PARAM FIX (MAIN MAGIC) ---------- */
+function fixParams(p){
 
-/* ranges */
-cfg.input_range = Math.min(257, Math.max(32, cfg.input_range));
+p.range=Math.max(2,Math.round(p.range||257));
 
-/* velocities must increase */
-if(cfg.p2v <= cfg.p1v)
-cfg.p2v = cfg.p1v + 0.01;
+p.p1cap=Math.max(1,p.p1cap);
 
-if(cfg.p3v <= cfg.p2v)
-cfg.p3v = cfg.p2v + 0.01;
+/* enforce phase ordering automatically */
+if(p.p2start<=p.p1cap)
+p.p2start=p.p1cap+1;
 
-/* phase ordering */
-cfg.p1cap = Math.max(2, cfg.p1cap);
-cfg.p2start = Math.max(cfg.p1cap+1, cfg.p2start);
-cfg.p3start = Math.max(cfg.p2start+1, cfg.p3start);
+if(p.p3start<=p.p2start)
+p.p3start=p.p2start+1;
 
-/* keep inside range */
-cfg.p3start = Math.min(cfg.input_range-1, cfg.p3start);
+/* clamp velocities */
+p.p1v=Math.max(0.01,p.p1v);
+p.p2v=Math.max(p.p1v,p.p2v);
+p.p3v=Math.max(p.p2v,p.p3v);
 
-/* smoothing safe */
-cfg.smooth = Math.min(2, Math.max(0.0001, cfg.smooth));
+/* safe smoothing */
+p.smooth=Math.min(1,Math.max(0.0001,p.smooth));
 
-return cfg;
+return p;
 }
 
 /* ---------- SIGMOID ---------- */
@@ -109,36 +124,38 @@ function sigmoid(x){
 return 1/(1+Math.exp(-x));
 }
 
-/* ---------- RAW ACCEL SAFE FIX ---------- */
-function fixLUT(data){
+/* ---------- RAW ACCEL SAFE ---------- */
+function autoFixLUT(data){
 
-let out=[];
+let fixed=[];
 let lastX=0.001;
 
-out.push({x:lastX,y:1});
+fixed.push({x:lastX,y:1});
 
-for(let p of data){
+for(const p of data){
 
-if(!p||!isFinite(p.x)||!isFinite(p.y)) continue;
+if(!p||!isFinite(p.x)||!isFinite(p.y))continue;
 
-let x=Math.max(lastX+0.001,p.x);
+let x=Math.max(0.001,p.x);
 let y=Math.max(0,Math.min(5,p.y));
 
-out.push({x,y});
+if(x<=lastX)x=lastX+0.001;
+
+fixed.push({x,y});
 lastX=x;
 }
 
-/* trim to 257 */
-if(out.length>MAX_POINTS){
-let step=(out.length-1)/(MAX_POINTS-1);
-let trimmed=[];
+/* enforce point limit */
+if(fixed.length>MAX_POINTS){
+const step=(fixed.length-1)/(MAX_POINTS-1);
+let tmp=[];
 for(let i=0;i<MAX_POINTS;i++){
-trimmed.push(out[Math.round(i*step)]);
+tmp.push(fixed[Math.round(i*step)]);
 }
-out=trimmed;
+fixed=tmp;
 }
 
-return out;
+return fixed;
 }
 
 /* ---------- GENERATE ---------- */
@@ -146,41 +163,40 @@ function generateCurve(){
 
 try{
 
-let cfg={
-input_range:safe(input_range.value,257),
-p1v:safe(phase1_velocity.value,1),
-p2v:safe(phase2_velocity.value,2),
-p3v:safe(phase3_velocity.value,3),
-p1cap:safe(phase1_cap.value,60),
-p2start:safe(phase2_start.value,120),
-p3start:safe(phase3_start.value,180),
-smooth:safe(smooth_factor.value,0.1)
-};
-
-/* AUTO FIX EVERYTHING */
-cfg=autoAdjust(cfg);
+let params=fixParams({
+range:num("input_range",257),
+p1v:num("phase1_velocity",6),
+p2v:num("phase2_velocity",20),
+p3v:num("phase3_velocity",50),
+p1cap:num("phase1_cap",50),
+p2start:num("phase2_start",120),
+p3start:num("phase3_start",180),
+smooth:num("smooth_factor",0.1)
+});
 
 let raw=[];
 let xs=[];
 let ys=[];
 
-for(let x=1;x<=cfg.input_range;x++){
+for(let x=1;x<=params.range;x++){
 
 let y;
 
-if(x<=cfg.p1cap){
-y=(cfg.p1v/cfg.p1cap)*x;
+if(x<=params.p1cap){
+y=(params.p1v/params.p1cap)*x;
 }
-else if(x<cfg.p2start){
-let mid=(cfg.p1cap+cfg.p2start)/2;
-y=cfg.p1v+(cfg.p2v-cfg.p1v)*sigmoid(cfg.smooth*(x-mid));
+else if(x<params.p2start){
+let mid=(params.p1cap+params.p2start)/2;
+y=params.p1v+(params.p2v-params.p1v)*
+sigmoid(params.smooth*(x-mid));
 }
-else if(x<cfg.p3start){
-let mid=(cfg.p2start+cfg.p3start)/2;
-y=cfg.p2v+(cfg.p3v-cfg.p2v)*sigmoid(cfg.smooth*(x-mid));
+else if(x<params.p3start){
+let mid=(params.p2start+params.p3start)/2;
+y=params.p2v+(params.p3v-params.p2v)*
+sigmoid(params.smooth*(x-mid));
 }
 else{
-y=cfg.p3v;
+y=params.p3v;
 }
 
 raw.push({x,y});
@@ -188,29 +204,31 @@ xs.push(x);
 ys.push(y);
 }
 
-const safeLUT=fixLUT(raw);
+const safe=autoFixLUT(raw);
 
-lutOutput.value=safeLUT
+/* export */
+lutOutput.value=safe
 .map(p=>`${p.x.toFixed(3)},${p.y.toFixed(3)};`)
 .join("\n");
 
 drawChart(xs,ys);
 
 }catch(e){
-console.log("Auto recovered from error:",e);
+console.log("Auto recovered:",e);
 }
 }
 
 /* ---------- GRAPH ---------- */
 function drawChart(x,y){
 
-if(chart) chart.destroy();
+if(chart)chart.destroy();
 
-chart=new Chart(document.getElementById("chart"),{
+chart=new Chart(chartCanvas,{
 type:"line",
 data:{
 labels:x,
 datasets:[{
+label:"Velocity Curve",
 data:y,
 borderColor:"white",
 borderWidth:2,
@@ -218,7 +236,7 @@ pointRadius:0
 }]
 },
 options:{
-plugins:{legend:{display:false}},
+plugins:{legend:{labels:{color:"white"}}},
 scales:{
 x:{ticks:{color:"white"},grid:{color:"#222"}},
 y:{ticks:{color:"white"},grid:{color:"#222"}}
@@ -229,9 +247,12 @@ y:{ticks:{color:"white"},grid:{color:"#222"}}
 
 /* ---------- COPY ---------- */
 function copyLUT(){
-if(!lutOutput.value) return;
+
+if(!lutOutput.value.trim())return;
+
 lutOutput.select();
 document.execCommand("copy");
+alert("Copied!");
 }
 
 </script>
