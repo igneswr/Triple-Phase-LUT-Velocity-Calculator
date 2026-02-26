@@ -65,5 +65,5 @@ Higher value means sharper change
 
 Credits
 
-Made by @igneswr
+Made by @repodatabase
 Original logic by @fugaz13
